@@ -14,6 +14,10 @@ class emptyGraphException(Exception):
 	def __init__(self):
 		Exception.__init__(self, "Graph has not yet been populated or has been cleared. Run generateRandomGraph() first.")
 
+class noSuchNodeException(Exception):
+	def __init__(self, nodeNum):
+		Exception.__init__(self, "The node {} does not exist in the graph.".format(nodeNum))
+
 ################################################################################################################################
 
 class Embedding:
@@ -50,15 +54,48 @@ class Embedding:
 
 		colorMap = []
 		for nodes in G.nodes():
-			if len(list(G.neighbors(nodes))) > 10:
+			if len(list(G.neighbors(nodes))) > 12:
 				colorMap.append('red')
+			elif len(list(G.neighbors(nodes))) > 10 and len(list(G.neighbors(nodes))) <= 12:
+				colorMap.append('orange')
 			elif len(list(G.neighbors(nodes))) >= 5 and len(list(G.neighbors(nodes))) <= 10:
 				colorMap.append('yellow')
-			else:
+			elif len(list(G.neighbors(nodes))) >= 2 and len(list(G.neighbors(nodes))) < 5:
 				colorMap.append('green')
+			else:
+				colorMap.append('blue')
 
 		nx.draw(G, with_labels = True, font_weight = "bold", node_color = colorMap)
 		plt.show()
+
+	def getMinDegreeVertices(self, *args):
+		assert(len(args) == 0 or len(args) == 1), "Invalid number of arguments."
+
+		if len(self.theGraph) == 0:
+			raise emptyGraphException()
+
+		providedNodes = [_ for _ in args[0]] if len(args) == 1 else []
+
+		# check if the nodes actually exist in the graph
+		for prov in providedNodes:
+			if prov not in [x for x,y in self.theGraph] + [y for x,y in self.theGraph]:
+				raise noSuchNodeException(prov)
+
+		G = nx.Graph()
+		G.add_nodes_from([x for x,y in self.theGraph] + [y for x,y in self.theGraph])
+		G.add_edges_from(self.theGraph)
+
+		minDegree = float("inf")
+		for nodes in G.nodes():
+			if (len(list(G.neighbors(nodes))) < minDegree) and (nodes not in providedNodes):
+				minDegree = len(list(G.neighbors(nodes)))
+
+		answer = []
+		for nodes in G.nodes():
+			if (len(list(G.neighbors(nodes))) == minDegree) and (nodes not in providedNodes):
+				answer.append(nodes)
+
+		return answer
 
 	def clearGraph(self):
 		self.theGraph = []
@@ -68,4 +105,5 @@ class Embedding:
 if __name__ == "__main__":
 	e = Embedding()
 	e.generateRandomGraph(100, 300)
+	print(e.getMinDegreeVertices())
 	e.plotGraph()
