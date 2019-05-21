@@ -1,8 +1,8 @@
 theme: jekyll-theme-cayman
-title: Research on Frequency Converter
+title: QEmbed
 author: Frank Lee
-email: franklee@umail.ucsb.edu
-description: Research on high frequency sound converter
+email: franklee@ucsb.edu
+description: Approaches on various embedding problems for Quantum Annealing
 github_username:  franklee26
 
 header_pages:
