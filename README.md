@@ -1,2 +1,1 @@
-# QEmbed
-Approaches on embedding problems for Quantum Annealers
+# QEmbed v1.0
