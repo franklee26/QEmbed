@@ -6,7 +6,5 @@ description: Research on high frequency sound converter
 github_username:  franklee26
 
 header_pages:
-  - readme.md
-  - testing.md
-
+  - README.md
 markdown: kramdown
