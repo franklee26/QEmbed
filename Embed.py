@@ -139,7 +139,7 @@ class Embedding:
 		if (removeOCT == True):
 			OCTSet = []
 			for nodes in G.nodes():
-				if nodes not in L and nodes not in R:
+				if nodes not in left and nodes not in right:
 					OCTSet.append(nodes)
 			G.remove_nodes_from(OCTSet)
 
@@ -164,4 +164,4 @@ if __name__ == "__main__":
 	e = Embedding(graph = [(1,2),(1,5),(1,3),(2,4),(2,5),(3,5),(3,4)])
 	#e.generateRandomGraph(10, 25)
 	L,R = e.greedyBipartite()
-	e.plotOCTDivision(left = L, right = R, removeOCT = False)
+	e.plotOCTDivision(left = L, right = R, removeOCT = True)
