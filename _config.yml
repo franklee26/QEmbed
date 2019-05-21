@@ -2,7 +2,7 @@ theme: jekyll-theme-cayman
 title: QEmbed
 author: Frank Lee
 email: franklee@ucsb.edu
-description: Approaches on various embedding problems for Quantum Annealing
+description: A simple Python package for approaching various embedding problems in Quantum Annealing research.
 github_username:  franklee26
 
 header_pages:
