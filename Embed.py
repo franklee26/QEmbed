@@ -219,6 +219,8 @@ class Embedding:
 	def plotChimeraFromBipartite(self, showMappings = False, L = 2, M = 2, N = 2, *, left = [], right = []):
 		assert(left != None and right != None), "Must provide non-empty left and right sets."
 		assert(L >= 1 and M >= 1 and N >= 1), "Chimera L,M,N topologies must be at least 1."
+		if (left == [] or right == []):
+			print("Warning: empty left or right sets.")
 		answer = []
 		labelDict = {}
 		# Mapping bipartite sets. First left set:
