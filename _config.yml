@@ -7,4 +7,5 @@ github_username:  franklee26
 
 header_pages:
   - README.md
+  - somepage.md
 markdown: kramdown
