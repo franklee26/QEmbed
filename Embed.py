@@ -3,6 +3,8 @@ import networkx as nx
 import dwave_networkx as dnx
 import math
 import random
+# for general tools: Python passes objects by reference!
+import EMBED_TOOLS as ET
 
 # Custom exceptions
 
@@ -25,20 +27,26 @@ class noSuchNodeException(Exception):
 class Embedding:
 	def __init__(self, *, graph = None):
 		self.theGraph = [] if graph == None else graph
+		self.theBackup = []
 
-	def generateRandomGraph(self, numNodes, numEdges, *args):
+	def generateRandomGraph(self, numNodes = 2, numEdges = 1, allowedRedos = 2000):
 		assert(numNodes > 0), "Number of nodes must be a non-zero integer."
 		assert(numEdges >= 0), "Number of edges must be zero or a positive integer."
-		assert(len(args) == 0 or len(args) == 1), "Invalid number of arguments."
-		if len(args) == 1:
-			assert(args[0] > 0), "Allowed redos must be a positive integer."
+		assert(allowedRedos >= 0 and allowedRedos <= 999999), "Number of redos must be between 0 and 999999"
+		if numNodes*(numNodes-1) < numEdges:
+			raise overbookedGraphException(allowedRedos)
+		# assert(len(args) == 0 or len(args) == 1), "Invalid number of arguments."
+		# if len(args) == 1:
+		# 	assert(args[0] > 0), "Allowed redos must be a positive integer."
 		# now erase
 		if len(self.theGraph) > 0:
 			print("Warning: Graph was already populated. Overwriting with randomly generated graph...")
+			print("Storing previous graph in backup. (Note: this overwrites the backup too.)")
+			self.theBackup = self.theGraph
 		self.theGraph = []
 
-		allowedRedos = int(args[0]) if len(args) == 1 else 2000
-		nodeList = [_ for _ in range(1,numNodes)]
+		#allowedRedos = int(args[0]) if len(args) == 1 else 2000
+		nodeList = [_ for _ in range(1,numNodes+1)]
 		for _ in range(numEdges):
 			t = (nodeList[int(random.uniform(0,len(nodeList)))], nodeList[int(random.uniform(0,len(nodeList)))])
 			numOfRedos = 0
@@ -63,76 +71,91 @@ class Embedding:
 			if len(list(G.neighbors(nodes))) > 12:
 				colorMap.append('red')
 			elif len(list(G.neighbors(nodes))) > 10 and len(list(G.neighbors(nodes))) <= 12:
+				colorMap.append('gold')
+			elif len(list(G.neighbors(nodes))) >= 7 and len(list(G.neighbors(nodes))) <= 10:
 				colorMap.append('orange')
-			elif len(list(G.neighbors(nodes))) >= 5 and len(list(G.neighbors(nodes))) <= 10:
-				colorMap.append('yellow')
-			elif len(list(G.neighbors(nodes))) >= 3 and len(list(G.neighbors(nodes))) < 5:
+			elif len(list(G.neighbors(nodes))) >= 4 and len(list(G.neighbors(nodes))) < 7:
 				colorMap.append('green')
 			else:
 				colorMap.append('blue')
 
-		nx.draw(G, with_labels = True, font_weight = "bold", node_color = colorMap)
+		nx.draw(G, with_labels = True, font_weight = "bold", node_size = 475, node_color = colorMap, width = 3.25, edge_color = "purple")
 		plt.show()
 
-	def getMinDegreeVertices(self, *args):
-		assert(len(args) == 0 or len(args) == 1 or len(args) == 2), "Invalid number of arguments."
-		if len(self.theGraph) == 0:
-			raise emptyGraphException()
-
-		providedNodes = [_ for _ in args[0]] if len(args) >= 1 else []
-		providedGraph = [_ for _ in args[1]] if len(args) == 2 else [_ for _ in self.theGraph]
-		if len(providedGraph) == 0:
-			raise emptyGraphException()
-
-		G = nx.Graph()
-		G.add_nodes_from([x for x,y in providedGraph] + [y for x,y in providedGraph])
-		G.add_edges_from(providedGraph)
-
-		minDegree = float("inf")
-		for nodes in G.nodes():
-			if (len(list(G.neighbors(nodes))) < minDegree) and (nodes not in providedNodes):
-				minDegree = len(list(G.neighbors(nodes)))
+	def getMinDegreeVertices(self, *, graph = None):
 		answer = []
-		for nodes in G.nodes():
-			if (len(list(G.neighbors(nodes))) == minDegree) and (nodes not in providedNodes):
-				answer.append(nodes)
+		minDeg = float('inf')
+		for nodes in list(graph.nodes()):
+			if len(list(graph.neighbors(nodes))) < minDeg:
+				minDeg = len(list(graph.neighbors(nodes)))
 
+		for nodes in list(graph.nodes()):
+			if len(list(graph.neighbors(nodes))) == minDeg:
+				answer.append(nodes)
 		return answer
 
 	def greedyIndSet(self, *, graph = None):
-		answer, discards = [], []
-		copy = [_ for _ in self.theGraph] if graph == None else [_ for _ in graph]
-		G = nx.Graph()
-		G.add_nodes_from([x for x,y in copy] + [y for x,y in copy])
-		G.add_edges_from(copy)
-		OG = G.number_of_nodes()
-		while (G.number_of_nodes() != 0):
-			temp = self.getMinDegreeVertices(discards, copy)
+		answer = []
+
+		esc = ET.EMBED_TOOLS(graph)
+		graphCopy = esc.GET_COPY()
+
+		# copy = [_ for _ in self.theGraph] if graph == None else [_ for _ in graph]
+		# G = nx.Graph()
+		# G.add_nodes_from([x for x,y in copy] + [y for x,y in copy])
+		# G.add_edges_from(copy)
+		while (graphCopy.number_of_nodes() != 0):
+			temp = self.getMinDegreeVertices(graph = graphCopy)
+
 			# for now remove the first element
 			# remove all it's neighbors
 			indexToRemove = int(random.uniform(0, len(temp)))
-			N = list(G.neighbors(temp[indexToRemove]))
-			# print("Min set is {} and neighbors are {} and removing {}".format(temp, N, temp[indexToRemove]))
-			G.remove_node(temp[indexToRemove])
-			G.remove_nodes_from(N)
+			N = list(graphCopy.neighbors(temp[indexToRemove]))
+			print("Min set is {} and neighbors are {} and removing {}".format(temp, N, temp[indexToRemove]))
+
+			reinsert = []
+			# now see if I have to restore some nodes, just iterate over the backup
+			for nodes in N:
+				if len(list(graphCopy.neighbors(nodes))) == 1:
+					reinsert.append(nodes)
+
+			graphCopy.remove_node(temp[indexToRemove])
+			# reinsert lone nodes
+			for nodes in reinsert:
+				graphCopy.add_node(nodes)
+
+			# I also have to remove the neighbors, do the same process
+			for nodes in N:
+				n1 = list(graphCopy.neighbors(nodes))
+				# iterate over and check
+				toRestore = []
+				for nn in n1:
+					if len(list(graphCopy.neighbors(nn))) == 1:
+						# deleting this neighbor will screw up this guy
+						toRestore.append(nn)
+				# saved, now delete
+				graphCopy.remove_node(nodes)
+				# and recover
+				for nn in toRestore:
+					graphCopy.add_node(nn)
+
 			answer.append(temp[indexToRemove])
-			discards.append(temp[indexToRemove])
-			discards += N
+
 		return answer
 
 	def greedyBipartiteSets(self, *, getOCT = None):
 		assert(getOCT == False or getOCT == True or getOCT == None), "getOCT must be a boolean value."
-		L = self.greedyIndSet(graph = self.theGraph)
-		stahp = []
-		for x,y in self.theGraph:
-			if (x not in L) and (y not in L):
-				stahp.append((x,y))
-		R = self.greedyIndSet(graph = stahp)
+		G = nx.Graph()
+		G.add_nodes_from([x for x,y in self.theGraph] + [y for x,y in self.theGraph])
+		G.add_edges_from(self.theGraph)
+
+		et = ET.EMBED_TOOLS(G)
+
+		L = self.greedyIndSet(graph = G)
+		R = self.greedyIndSet(graph = et.DELETE_NODES(L))
+
 		if getOCT == True:
 			OCT = []
-			G = nx.Graph()
-			G.add_nodes_from([x for x,y in self.theGraph] + [y for x,y in self.theGraph])
-			G.add_edges_from(self.theGraph)
 			for nodes in G.nodes():
 				if nodes not in L and nodes not in R:
 					OCT.append(nodes)
@@ -204,7 +227,7 @@ class Embedding:
 		left, right, OCT = len(LSet), len(RSet), len(OCTSet)
 		
 		G = dnx.chimera_graph(l,m,n)
-		dnx.draw_chimera(G)
+		dnx.draw_chimera(G, width = 3, edge_color = "purple")
 
 		# abstracting built in exceptions
 		try:
@@ -247,24 +270,29 @@ class Embedding:
 		# 	if keys[3] + 1 > N: N = keys[3] + 1
 
 		G = dnx.chimera_graph(L,M,N)
-		dnx.draw_chimera(G)
+		dnx.draw_chimera(G, width = 4.6, edge_color = "purple")
 
 		x = dnx.generators.chimera_graph(N,L,M, node_list = answer, coordinates = True)
-		dnx.draw_chimera(x, node_color = "red", labels = labelDict, with_labels = True, edge_color = "red", font_weight = "bold", font_size = "medium")
+		dnx.draw_chimera(x, node_color = "red", labels = labelDict, width = 4.6, with_labels = True, edge_color = "red", font_weight = "bold", font_size = "medium")
 		plt.show()
 
 	def clearGraph(self):
 		self.theGraph = []
 
+	def restoreToBackup(self):
+		assert(self.theBackup != []), "Can not restore current graph to an empty backup. Try clearGraph() instead."
+		print("Restoring current graph...")
+		self.theGraph = self.theBackup
+
 ################################################################################################################################
 
 if __name__ == "__main__":
-	e = Embedding(graph = [(1,2),(1,5),(1,3),(1,4),(2,4),(2,5),(3,5),(3,4)])
-
-	#e = Embedding()
-	#e.generateRandomGraph(20, 70)
+	#e = Embedding(graph = [(1,2),(1,5),(1,3),(2,4),(2,5),(3,5),(3,4)])
+	e = Embedding(graph = [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)])
+	#e.plotGraph()
 	L,R,OCT = e.greedyBipartiteSets(getOCT = True)
-	biG = e.greedyBipartiteGraph()
-	e.plotChimeraFromBipartite(left= L, right = R)
+	# biG = e.greedyBipartiteGraph()
+	print(L,R,OCT)
+	e.plotChimeraFromBipartite(left= L, right = R, showMappings = False)
 	#e.plotChimera(2,2,2,biPartite = biG);
 	#e.plotOCTDivision(left = L, right = R, removeOCT = True)
