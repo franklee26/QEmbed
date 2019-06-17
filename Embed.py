@@ -4,7 +4,7 @@ import dwave_networkx as dnx
 import math
 import random
 # for general tools: Python passes objects by reference!
-import EMBED_TOOLS as ET
+import QEmbed.EMBED_TOOLS as ET
 
 # Custom exceptions
 
@@ -24,11 +24,47 @@ class noSuchNodeException(Exception):
 
 ################################################################################################################################
 
+# helpers
+
+def getChiDimensions(i, j, n):
+	# assumes that we do not have a bipartite graph
+	# enforce j <= LM and n-i <= LN
+	# start with a single 2x2 bipartite
+	# enforce I don't get anything more than a 8x8.
+	CHECKERED_COUNT = 1
+	L, M, N = 1, 1, 2
+	while j > L*M and n-i > L*N and CHECKERED_COUNT <= 8:
+		# try just incrementing L and M
+		L += 1
+		M += 1
+		CHECKERED_COUNT += 1
+	# if this doesn't work, then my last resort is to increase the bipartite
+	# enforce I don't get anything larger than a 8x8 bipartite
+	# this means my max LM = 64, LN = 64. Should be enough for these problems
+	BIPARTITE_COUNT = 1
+	while j > L*M and n-i > L*N and BIPARTITE_COUNT <= 8:
+		N += 1
+		BIPARTITE_COUNT += 1
+
+	if j > L*M or n-i > L*N:
+		print("Provided dimensions require a chimera graph larger than 8x8x8. Exiting...")
+		return
+
+	return L, M, N
+
+################################################################################################################################
+
 class Embedding:
+	'''
+	Embedding Constructor
+	'''
 	def __init__(self, *, graph = None):
 		self.theGraph = [] if graph == None else graph
 		self.theBackup = []
 
+	'''
+	generate random graph
+	'''
 	def generateRandomGraph(self, numNodes = 2, numEdges = 1, allowedRedos = 2000):
 		assert(numNodes > 0), "Number of nodes must be a non-zero integer."
 		assert(numEdges >= 0), "Number of edges must be zero or a positive integer."
@@ -57,6 +93,9 @@ class Embedding:
 				t = (nodeList[int(random.uniform(0,len(nodeList)))], nodeList[int(random.uniform(0,len(nodeList)))])
 			self.theGraph.append(t)
 
+	'''
+	standard graph plotting
+	'''
 	def plotGraph(self):
 		if len(self.theGraph) == 0:
 			raise emptyGraphException()
@@ -82,6 +121,9 @@ class Embedding:
 		nx.draw(G, with_labels = True, font_weight = "bold", node_size = 475, node_color = colorMap, width = 3.25, edge_color = "purple")
 		plt.show()
 
+	'''
+	returns a list of nodes with the minimum degree
+	'''
 	def getMinDegreeVertices(self, *, graph = None):
 		answer = []
 		minDeg = float('inf')
@@ -94,16 +136,16 @@ class Embedding:
 				answer.append(nodes)
 		return answer
 
-	def greedyIndSet(self, *, graph = None):
+	'''
+	input: networkx graph object
+	output: a partite for the bipartite graph
+	'''
+	def greedyIndSet(self, *, graph = None, showProgress = False):
 		answer = []
 
 		esc = ET.EMBED_TOOLS(graph)
 		graphCopy = esc.GET_COPY()
 
-		# copy = [_ for _ in self.theGraph] if graph == None else [_ for _ in graph]
-		# G = nx.Graph()
-		# G.add_nodes_from([x for x,y in copy] + [y for x,y in copy])
-		# G.add_edges_from(copy)
 		while (graphCopy.number_of_nodes() != 0):
 			temp = self.getMinDegreeVertices(graph = graphCopy)
 
@@ -111,7 +153,8 @@ class Embedding:
 			# remove all it's neighbors
 			indexToRemove = int(random.uniform(0, len(temp)))
 			N = list(graphCopy.neighbors(temp[indexToRemove]))
-			print("Min set is {} and neighbors are {} and removing {}".format(temp, N, temp[indexToRemove]))
+			if showProgress == True:
+				print("Min set is {} and neighbors are {} and removing {}".format(temp, N, temp[indexToRemove]))
 
 			reinsert = []
 			# now see if I have to restore some nodes, just iterate over the backup
@@ -143,7 +186,11 @@ class Embedding:
 
 		return answer
 
-	def greedyBipartiteSets(self, *, getOCT = None):
+	'''
+	input: none
+	output: get the L, R and perhaps OCT sets from a problem graph
+	'''
+	def greedyBipartiteSets(self, *, getOCT = None, showProgress = False):
 		assert(getOCT == False or getOCT == True or getOCT == None), "getOCT must be a boolean value."
 		G = nx.Graph()
 		G.add_nodes_from([x for x,y in self.theGraph] + [y for x,y in self.theGraph])
@@ -151,8 +198,8 @@ class Embedding:
 
 		et = ET.EMBED_TOOLS(G)
 
-		L = self.greedyIndSet(graph = G)
-		R = self.greedyIndSet(graph = et.DELETE_NODES(L))
+		L = self.greedyIndSet(graph = G, showProgress = showProgress)
+		R = self.greedyIndSet(graph = et.DELETE_NODES(L), showProgress = showProgress)
 
 		if getOCT == True:
 			OCT = []
@@ -162,6 +209,10 @@ class Embedding:
 			return L,R,OCT
 		return L,R
 
+	'''
+	input: none
+	output: list of tuples for the bipartite graph
+	'''
 	def greedyBipartiteGraph(self):
 		L = self.greedyIndSet(graph = self.theGraph)
 		stahp = []
@@ -179,6 +230,10 @@ class Embedding:
 				answer.append((x,y))
 		return answer
 
+	'''
+	input: L and R sets from a Bipartite computed via OCT division
+	output: plot of graph but with highlights of the L and R and maybe the OCT set
+	'''
 	def plotOCTDivision(self, *, left = None, right = None, removeOCT = None):
 		assert(left != None and right != None), "Must provide left and right sets."
 		assert(removeOCT == False or removeOCT == True or removeOCT == None), "removeOCT must be a boolean value."
@@ -207,7 +262,7 @@ class Embedding:
 			else:
 				colorMap.append('gray')
 
-		nx.draw(G, with_labels = True, font_weight = "bold", node_color = colorMap)
+		nx.draw(G, with_labels = True, font_weight = "bold", node_size = 480, node_color = colorMap, width = 3.25, edge_color = "purple")
 		plt.show()
 
 	def plotChimera(self, l, m, n, *, biPartite = None):
@@ -238,43 +293,104 @@ class Embedding:
 
 		plt.show()
 
-	# given a bipartite graph, plot the chimera graph
-	def plotChimeraFromBipartite(self, showMappings = False, L = 2, M = 2, N = 2, *, left = [], right = []):
+	'''
+	input: bipartite graph with left and right sets (L and R)
+	output: plot of chimera graph with bipartite embedded
+	'''
+	def plotChimeraFromBipartite(self, showMappings = False, L = 2, M = 2, N = 2, *, left = [], right = [], isBipartite = False):
 		assert(left != None and right != None), "Must provide non-empty left and right sets."
 		assert(L >= 1 and M >= 1 and N >= 1), "Chimera L,M,N topologies must be at least 1."
 		if (left == [] or right == []):
 			print("Warning: empty left or right sets.")
 		answer = []
 		labelDict = {}
-		# Mapping bipartite sets. First left set:
-		for i in range(0, len(left)):
-			for j in range(0,M):
-				t = (j, math.ceil(i/L), 0, (i%L)-1) if (i%L)-1 >= 0 else (j, math.ceil(i/L), 0, 0)
-				answer.append(t)
-				if (showMappings == True):
-					print("Mapping v{} to {}.".format(i+1, t))
-				labelDict[t] = "v{}".format(i+1)
-		# then right set
-		for i in range(0, len(right)):
-			for j in range(0,N):
-				t = (math.ceil(i/L), j, 1, (i%L)-1) if (i%L)-1 >= 0 else (math.ceil(i/L), j, 1, 0)
-				answer.append(t)
-				if (showMappings == True):
-					print("Mapping h{} to {}.".format(i+1, t))
-				labelDict[t] = "h{}".format(i+1)
+		if isBipartite == True:
+			for i in range(len(left)):
+				answer.append((0,0,0,i))
+				labelDict[(0,0,0,i)] = "v{}".format(left[i][1])
+			for i in range(len(right)):
+				answer.append((0,0,1,i))
+				labelDict[(0,0,1,i)] = "h{}".format(left[i][1])
 
-		# L,M,N = 2,2,2
-		# for keys in labelDict:
-		# 	if keys[0] + 1 > L: L = keys[0] + 1
-		# 	if keys[1] + 1 > M: M = keys[1] + 1
-		# 	if keys[3] + 1 > N: N = keys[3] + 1
+		# Mapping bipartite sets. First left set
+		else:
+			for i, end in left:
+				for j in range(1, M+1):
+					t = (j, math.ceil((i)/L), 1, ((i)%L)) if ((i)%L) > 0 else (j, math.ceil((i)/L), 1, L)
+					answer.append(tuple(k-1 for k in t))
+					if (showMappings == True):
+						print("Mapping v{} to {}.".format(end, tuple(k-1 for k in t)))
+					labelDict[tuple(k-1 for k in t)] = "v{}".format(end)
+
+			for i, end in right:
+				for j in range(1, N+1):
+					t = (math.ceil((i)/L), j, 2, ((i)%L)) if ((i)%L) > 0 else (math.ceil((i)/L), j, 2, L)
+					answer.append(tuple(k-1 for k in t))
+					if (showMappings == True):
+						print("Mapping h{} to {}.".format(end, tuple(k-1 for k in t)))
+					labelDict[tuple(k-1 for k in t)] = "h{}".format(end)
 
 		G = dnx.chimera_graph(L,M,N)
-		dnx.draw_chimera(G, width = 4.6, edge_color = "purple")
+		dnx.draw_chimera(G, width = 4.6, edge_color = "purple", node_size = 480)
 
-		x = dnx.generators.chimera_graph(N,L,M, node_list = answer, coordinates = True)
-		dnx.draw_chimera(x, node_color = "red", labels = labelDict, width = 4.6, with_labels = True, edge_color = "red", font_weight = "bold", font_size = "medium")
+		x = dnx.generators.chimera_graph(L,M,N, node_list = answer, coordinates = True)
+		dnx.draw_chimera(x, node_color = "red", labels = labelDict, node_size = 480, width = 5, with_labels = True, edge_color = "red", font_weight = "bold", font_size = "medium")
 		plt.show()
+
+	'''
+	input: L, R and octset
+	output: get bipartite graph (list of tuples where first element is where it is mapped to and second is
+	the original node name) and maybe the chimaer dimensions
+	'''
+	def OCTEmbed(self, left = [], right = [], oct = [], getChimeraDimensions = False):
+		v, h = [], []
+		i = len(oct)
+		j = len(left) + i
+		n = len(right) + j
+
+		# check if it is already bipartite
+		if i == 0:
+			# bipartite
+			if getChimeraDimensions == True:
+				print("Warning: Bipartite graph detected, ensure that bipartite flag is set when plotting.")
+				return [(i,i) for i in left], [(i,i) for i in right], 1, 1, max(len(left), len(right))
+			return [(i,i) for i in left], [(i,i) for i in right]
+
+		totalIndex = 1
+		for nodes in oct:
+			v.append((totalIndex, nodes))
+			h.append((totalIndex, nodes))
+			totalIndex += 1
+		for nodes in left:
+			v.append((totalIndex, nodes))
+			totalIndex += 1
+		for nodes in right:
+			h.append((totalIndex - i, nodes))
+			totalIndex += 1
+		if getChimeraDimensions == True:
+			# enforce j <= LM and n-i <= LN
+			a,b,c = getChiDimensions(i,j,n)
+			return v, h, a, b, c
+		return v, h
+
+	def plotBipartite(self, left = [], right = []):
+		G = dnx.chimera_graph(1,1,max(max([i for i,j in left]), max([i for i,j in right])))
+		dnx.draw_chimera(G, width = 4.6, edge_color = "purple", node_size = 480)
+
+		answer = []
+		labelDict = {}
+
+		for i in range(len(left)):
+			answer.append((0,0,0,i))
+			labelDict[(0,0,0,i)] = "{}".format(left[i][1])
+		for i in range(len(right)):
+			answer.append((0,0,1,i))
+			labelDict[(0,0,1,i)] = "{}".format(right[i][1])
+
+		x = dnx.generators.chimera_graph(1,1,max(max([i for i,j in left]), max([i for i,j in right])), node_list = answer, coordinates = True)
+		dnx.draw_chimera(x, node_color = "red", labels = labelDict, node_size = 480, width = 5, with_labels = True, edge_color = "red", font_weight = "bold", font_size = "medium")
+		plt.show()
+
 
 	def clearGraph(self):
 		self.theGraph = []
@@ -287,12 +403,15 @@ class Embedding:
 ################################################################################################################################
 
 if __name__ == "__main__":
-	#e = Embedding(graph = [(1,2),(1,5),(1,3),(2,4),(2,5),(3,5),(3,4)])
-	e = Embedding(graph = [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)])
+	e = Embedding(graph = [(1,2),(1,5),(1,3),(2,4),(2,5),(3,5),(3,4)])
+	e.plotGraph()
+	#e = Embedding(graph = [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)])
 	#e.plotGraph()
 	L,R,OCT = e.greedyBipartiteSets(getOCT = True)
 	# biG = e.greedyBipartiteGraph()
-	print(L,R,OCT)
-	e.plotChimeraFromBipartite(left= L, right = R, showMappings = False)
+	#print(L,R,OCT)
+	newL, newR, LL, MM, NN = e.OCTEmbed(left = L, right = R, oct = OCT, getChimeraDimensions = True)
+	e.plotBipartite(left = newL, right = newR)
+	e.plotChimeraFromBipartite(left= newL, right = newR, showMappings = False, L = LL, M = MM, N = NN, isBipartite = False)
 	#e.plotChimera(2,2,2,biPartite = biG);
 	#e.plotOCTDivision(left = L, right = R, removeOCT = True)
