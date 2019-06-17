@@ -17,7 +17,7 @@ class EMBED_TOOLS:
 		TEMP.add_edges_from(self.SHALLOW_COPY.edges())
 		# usable version
 		for n in nodes:
-			toRestore = [nn for list(TEMP.neighbors(n)) in n1 if len(list(TEMP.neighbors(nn))) == 1]
+			toRestore = [nn for nn in list(TEMP.neighbors(n)) if len(list(TEMP.neighbors(nn))) == 1]
 			TEMP.remove_node(n)
 			for nn in toRestore:
 				TEMP.add_node(nn)
