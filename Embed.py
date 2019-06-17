@@ -4,8 +4,7 @@ import dwave_networkx as dnx
 import math
 import random
 # for general tools: Python passes objects by reference!
-#import QEmbed.EMBED_TOOLS as ET
-import EMBED_TOOLS as ET
+import QEmbed.EMBED_TOOLS as ET
 
 # Custom exceptions
 
