@@ -3,6 +3,8 @@ import networkx as nx
 import dwave_networkx as dnx
 import math
 import random
+import sys
+import time
 # for general tools: Python passes objects by reference!
 import QEmbed.EMBED_TOOLS as ET
 
@@ -51,6 +53,13 @@ def getChiDimensions(i, j, n):
 		return
 
 	return L, M, N
+
+def bipartiteEnsurance(graph, left, right):
+	for l in left:
+		for r in right:
+			if (l,r) not in graph and (r,l) not in graph:
+				return False
+	return True
 
 ################################################################################################################################
 
@@ -141,6 +150,7 @@ class Embedding:
 	output: a partite for the bipartite graph
 	'''
 	def greedyIndSet(self, *, graph = None, showProgress = False):
+		assert(graph != None), "Error: can not provide empty graph to greedy alg."
 		answer = []
 
 		esc = ET.EMBED_TOOLS(graph)
@@ -190,7 +200,7 @@ class Embedding:
 	input: none
 	output: get the L, R and perhaps OCT sets from a problem graph
 	'''
-	def greedyBipartiteSets(self, *, getOCT = None, showProgress = False):
+	def greedyBipartiteSets(self, *, getOCT = None, showProgress = False, ensurance = False):
 		assert(getOCT == False or getOCT == True or getOCT == None), "getOCT must be a boolean value."
 		G = nx.Graph()
 		G.add_nodes_from([x for x,y in self.theGraph] + [y for x,y in self.theGraph])
@@ -200,6 +210,18 @@ class Embedding:
 
 		L = self.greedyIndSet(graph = G, showProgress = showProgress)
 		R = self.greedyIndSet(graph = et.DELETE_NODES(L), showProgress = showProgress)
+
+		if ensurance == True:
+			MAX_LIMIT, i = 100, 0
+			print("Warning: using ensurance slows down biparite calculation and does not necessarily guarantees answer.")
+			while bipartiteEnsurance(self.theGraph, L, R) == False and i <= MAX_LIMIT:
+				sys.stdout.write("\rTrying ensurance {}/101 time(s)".format(i+1))
+				sys.stdout.flush()
+				time.sleep(0.01)
+				L = self.greedyIndSet(graph = G, showProgress = showProgress)
+				R = self.greedyIndSet(graph = et.DELETE_NODES(L), showProgress = showProgress)
+				i += 1
+			print("QEmbed message: ensurance not required.") if i == 0 else print()
 
 		if getOCT == True:
 			OCT = []
@@ -315,16 +337,16 @@ class Embedding:
 		# Mapping bipartite sets. First left set
 		else:
 			for i, end in left:
-				for j in range(1, M+1):
-					t = (j, math.ceil((i)/L), 1, ((i)%L)) if ((i)%L) > 0 else (j, math.ceil((i)/L), 1, L)
+				for j in range(1, L+1):
+					t = (j, math.ceil((i)/N), 1, ((i)%N)) if ((i)%N) > 0 else (j, math.ceil((i)/N), 1, N)
 					answer.append(tuple(k-1 for k in t))
 					if (showMappings == True):
 						print("Mapping v{} to {}.".format(end, tuple(k-1 for k in t)))
 					labelDict[tuple(k-1 for k in t)] = "v{}".format(end)
 
 			for i, end in right:
-				for j in range(1, N+1):
-					t = (math.ceil((i)/L), j, 2, ((i)%L)) if ((i)%L) > 0 else (math.ceil((i)/L), j, 2, L)
+				for j in range(1, M+1):
+					t = (math.ceil((i)/N), j, 2, ((i)%N)) if ((i)%N) > 0 else (math.ceil((i)/N), j, 2, N)
 					answer.append(tuple(k-1 for k in t))
 					if (showMappings == True):
 						print("Mapping h{} to {}.".format(end, tuple(k-1 for k in t)))
@@ -391,7 +413,6 @@ class Embedding:
 		dnx.draw_chimera(x, node_color = "red", labels = labelDict, node_size = 480, width = 5, with_labels = True, edge_color = "red", font_weight = "bold", font_size = "medium")
 		plt.show()
 
-
 	def clearGraph(self):
 		self.theGraph = []
 
@@ -403,15 +424,32 @@ class Embedding:
 ################################################################################################################################
 
 if __name__ == "__main__":
-	e = Embedding(graph = [(1,2),(1,5),(1,3),(2,4),(2,5),(3,5),(3,4)])
-	e.plotGraph()
+	#e = Embedding(graph = [(1,2),(1,5),(1,3),(2,4),(2,5),(3,5),(3,4)])
+	#e.plotGraph()
 	#e = Embedding(graph = [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)])
 	#e.plotGraph()
-	L,R,OCT = e.greedyBipartiteSets(getOCT = True)
+	#L,R,OCT = e.greedyBipartiteSets(getOCT = True)
 	# biG = e.greedyBipartiteGraph()
 	#print(L,R,OCT)
-	newL, newR, LL, MM, NN = e.OCTEmbed(left = L, right = R, oct = OCT, getChimeraDimensions = True)
-	e.plotBipartite(left = newL, right = newR)
-	e.plotChimeraFromBipartite(left= newL, right = newR, showMappings = False, L = LL, M = MM, N = NN, isBipartite = False)
+	#newL, newR, LL, MM, NN = e.OCTEmbed(left = L, right = R, oct = OCT, getChimeraDimensions = True)
+	#e.plotBipartite(left = newL, right = newR)
+	#e.plotChimeraFromBipartite(left= newL, right = newR, showMappings = False, L = LL, M = MM, N = NN, isBipartite = True)
 	#e.plotChimera(2,2,2,biPartite = biG);
 	#e.plotOCTDivision(left = L, right = R, removeOCT = True)
+
+	g = [(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(2,3),(2,4),(2,7),(3,4),(3,5),(3,6),(3,7),(3,8),(4,7),(5,8),(5,7),(6,7),(6,8),(4,8)]
+	e = Embedding(graph = g)
+
+	e.plotGraph()
+
+	L,R,OCT = e.greedyBipartiteSets(getOCT = True, ensurance = True)
+	print(L,R,OCT)
+
+	# i = 0
+	# while i <= 100 and bipartiteEnsurance(g,L,R) == False:
+	# 	L,R,OCT = e.greedyBipartiteSets(getOCT = True)
+	# 	i += 1
+
+	newL, newR, LL, MM, NN = e.OCTEmbed(left = L, right = R, oct = OCT, getChimeraDimensions = True)
+	e.plotBipartite(left = newL, right = newR)
+	e.plotChimeraFromBipartite(left= newL, right = newR, showMappings = False, L = 2, M = 2, N = 4, isBipartite = False)
