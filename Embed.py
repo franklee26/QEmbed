@@ -222,12 +222,16 @@ class Embedding:
 				R = self.greedyIndSet(graph = et.DELETE_NODES(L), showProgress = showProgress)
 				i += 1
 			print("QEmbed message: ensurance not required.") if i == 0 else print()
+		
+		L.sort()
+		R.sort()
 
 		if getOCT == True:
 			OCT = []
 			for nodes in G.nodes():
 				if nodes not in L and nodes not in R:
 					OCT.append(nodes)
+			OCT.sort()
 			return L,R,OCT
 		return L,R
 
@@ -342,7 +346,7 @@ class Embedding:
 					answer.append(tuple(k-1 for k in t))
 					if (showMappings == True):
 						print("Mapping v{} to {}.".format(end, tuple(k-1 for k in t)))
-					labelDict[tuple(k-1 for k in t)] = "v{}".format(end)
+					labelDict[tuple(k-1 for k in t)] = "h{}".format(end)
 
 			for i, end in right:
 				for j in range(1, M+1):
@@ -350,7 +354,7 @@ class Embedding:
 					answer.append(tuple(k-1 for k in t))
 					if (showMappings == True):
 						print("Mapping h{} to {}.".format(end, tuple(k-1 for k in t)))
-					labelDict[tuple(k-1 for k in t)] = "h{}".format(end)
+					labelDict[tuple(k-1 for k in t)] = "v{}".format(end)
 
 		G = dnx.chimera_graph(L,M,N)
 		dnx.draw_chimera(G, width = 4.6, edge_color = "purple", node_size = 480)
@@ -451,5 +455,6 @@ if __name__ == "__main__":
 	# 	i += 1
 
 	newL, newR, LL, MM, NN = e.OCTEmbed(left = L, right = R, oct = OCT, getChimeraDimensions = True)
+	print(newL, newR)
 	e.plotBipartite(left = newL, right = newR)
 	e.plotChimeraFromBipartite(left= newL, right = newR, showMappings = False, L = 2, M = 2, N = 4, isBipartite = False)
